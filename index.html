@@ -469,7 +469,7 @@
         type: "rock",
         x: w + 70,
         y: rand(50, h - 50),
-        vx: -(rand(210, 330) + state.level * 22),
+        vx: -(rand(170, 270) + state.level * 16),
         vy: rand(-28, 28),
         r: big ? rand(30, 47) : rand(18, 31),
         spin: rand(-2.2, 2.2),
@@ -579,7 +579,7 @@
       state.ship.invulnerable = Math.max(0, state.ship.invulnerable - dt);
       state.shake = Math.max(0, state.shake - dt);
 
-      const speed = 860;
+      const speed = 1020;
       let ax = 0;
       let ay = 0;
       if (state.keys.has("ArrowLeft") || state.keys.has("KeyA")) ax -= 1;
@@ -590,21 +590,21 @@
       if (state.pointer.active) {
         const dx = state.pointer.x - state.ship.x;
         const dy = state.pointer.y - state.ship.y;
-        state.ship.vx += clamp(dx * 13, -speed, speed) * dt;
-        state.ship.vy += clamp(dy * 13, -speed, speed) * dt;
+        state.ship.vx += clamp(dx * 17, -speed, speed) * dt;
+        state.ship.vy += clamp(dy * 17, -speed, speed) * dt;
       } else {
         state.ship.vx += ax * speed * dt;
         state.ship.vy += ay * speed * dt;
       }
 
-      state.ship.vx *= Math.pow(0.0045, dt);
-      state.ship.vy *= Math.pow(0.0045, dt);
+      state.ship.vx *= Math.pow(0.0065, dt);
+      state.ship.vy *= Math.pow(0.0065, dt);
       state.ship.x = clamp(state.ship.x + state.ship.vx * dt, 36, w - 38);
       state.ship.y = clamp(state.ship.y + state.ship.vy * dt, 42, h - 42);
 
       if (state.spawnRock <= 0) {
         spawnRock();
-        state.spawnRock = rand(0.42, 0.86) / (1 + state.level * 0.075);
+        state.spawnRock = rand(0.52, 1.0) / (1 + state.level * 0.055);
       }
       if (state.spawnFish <= 0) {
         spawnFish();
