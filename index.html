@@ -3,6 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>猫咪飞船</title>
   <style>
     :root {
@@ -112,6 +115,7 @@
     .overlay {
       position: absolute;
       inset: 0;
+      z-index: 4;
       display: grid;
       place-items: center;
       padding: 22px;
@@ -122,12 +126,14 @@
 
     .overlay.hidden {
       opacity: 0;
+      z-index: 0;
       pointer-events: none;
     }
 
     .skillbar {
       position: absolute;
-      inset: auto 14px 14px 14px;
+      inset: auto 14px max(14px, env(safe-area-inset-bottom)) 14px;
+      z-index: 3;
       display: flex;
       justify-content: center;
       gap: 8px;
@@ -347,7 +353,7 @@
       }
 
       .skillbar {
-        inset: auto 9px 9px 9px;
+        inset: auto 9px max(9px, env(safe-area-inset-bottom)) 9px;
       }
 
       .skill {
