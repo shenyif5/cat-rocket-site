@@ -1,0 +1,28 @@
+猫咪飞船 - 网站发布版
+
+这个文件夹就是完整网站。
+入口文件：index.html
+
+最简单发布方式：
+
+方式一：Netlify Drop
+1. 打开 https://app.netlify.com/drop
+2. 把 cat-rocket-site 文件夹拖进去
+3. 等它上传完成，会得到一个公开网址
+4. 把网址发给朋友，他们打开就能玩
+
+方式二：GitHub Pages
+1. 新建一个 GitHub 仓库
+2. 上传这个文件夹里的 index.html
+3. 在仓库 Settings -> Pages 里启用 GitHub Pages
+4. 选择 main 分支和 root 目录
+5. 等待生成公开网址
+
+方式三：Vercel
+1. 打开 https://vercel.com/new
+2. 导入一个包含 index.html 的仓库
+3. 部署后会得到公开网址
+
+注意：
+- 朋友不能访问 http://127.0.0.1:8765，那只是你电脑上的本地地址。
+- 发布到上面任一平台后，朋友访问的是公开网址。

@@ -1,0 +1,930 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>猫咪飞船</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f8fbff;
+      --muted: #a8b7c9;
+      --panel: rgba(9, 14, 26, 0.76);
+      --line: rgba(255, 255, 255, 0.16);
+      --accent: #ffcf5a;
+      --mint: #62e6b6;
+      --danger: #ff6b7a;
+      --sky: #101827;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: radial-gradient(circle at 28% 18%, #224465 0, #111c31 34%, #070a12 100%);
+      color: var(--ink);
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+      padding: 18px;
+    }
+
+    .shell {
+      width: min(1180px, 100%);
+      height: min(760px, calc(100vh - 36px));
+      min-height: 520px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 260px;
+      gap: 14px;
+    }
+
+    .stage {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #080c15;
+      box-shadow: 0 22px 70px rgba(0, 0, 0, 0.36);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      image-rendering: auto;
+      cursor: crosshair;
+    }
+
+    .hud {
+      position: absolute;
+      inset: 14px 14px auto 14px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .hud-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .pill {
+      min-width: 88px;
+      padding: 8px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      border-radius: 8px;
+      background: rgba(7, 11, 20, 0.68);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+      backdrop-filter: blur(8px);
+    }
+
+    .label {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.1;
+      white-space: nowrap;
+    }
+
+    .value {
+      display: block;
+      margin-top: 3px;
+      font-size: 20px;
+      font-weight: 800;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 22px;
+      background: linear-gradient(180deg, rgba(3, 6, 12, 0.28), rgba(3, 6, 12, 0.72));
+      text-align: center;
+      transition: opacity 180ms ease;
+    }
+
+    .overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .modal {
+      width: min(420px, 100%);
+      padding: 22px;
+      border: 1px solid rgba(255, 255, 255, 0.17);
+      border-radius: 8px;
+      background: rgba(8, 13, 23, 0.82);
+      box-shadow: 0 26px 80px rgba(0, 0, 0, 0.38);
+      backdrop-filter: blur(12px);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(32px, 6vw, 62px);
+      line-height: 0.96;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 12px auto 18px;
+      max-width: 32ch;
+      color: #d6e0ee;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    button {
+      appearance: none;
+      border: 0;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #15100a;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 800;
+      padding: 11px 16px;
+      min-height: 44px;
+      box-shadow: 0 10px 0 #9f6f21, 0 18px 36px rgba(0, 0, 0, 0.28);
+      transition: transform 120ms ease, box-shadow 120ms ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 11px 0 #9f6f21, 0 20px 38px rgba(0, 0, 0, 0.28);
+    }
+
+    button:active {
+      transform: translateY(6px);
+      box-shadow: 0 4px 0 #9f6f21, 0 12px 26px rgba(0, 0, 0, 0.22);
+    }
+
+    .side {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 16px;
+      backdrop-filter: blur(12px);
+    }
+
+    .brand {
+      display: grid;
+      gap: 6px;
+    }
+
+    .brand strong {
+      font-size: 24px;
+      line-height: 1.1;
+    }
+
+    .brand span,
+    .tips,
+    .footer {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .tips {
+      display: grid;
+      gap: 10px;
+    }
+
+    .tip {
+      border-top: 1px solid var(--line);
+      padding-top: 10px;
+    }
+
+    .legend {
+      display: grid;
+      gap: 9px;
+      margin: 10px 0;
+    }
+
+    .legend-row {
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      align-items: center;
+      gap: 9px;
+      color: #dce7f4;
+      font-size: 13px;
+    }
+
+    .swatch {
+      display: grid;
+      width: 28px;
+      height: 28px;
+      place-items: center;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      font-size: 18px;
+    }
+
+    .meter {
+      height: 8px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .meter > i {
+      display: block;
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--mint), var(--accent), var(--danger));
+      transition: width 160ms ease;
+    }
+
+    @media (max-width: 820px) {
+      body {
+        padding: 10px;
+      }
+
+      .shell {
+        height: calc(100vh - 20px);
+        min-height: 0;
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(0, 1fr) auto;
+      }
+
+      .side {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        padding: 11px;
+      }
+
+      .tips,
+      .footer {
+        display: none;
+      }
+
+      .brand strong {
+        font-size: 18px;
+      }
+
+      .brand span {
+        font-size: 12px;
+      }
+
+      .hud {
+        inset: 9px 9px auto 9px;
+      }
+
+      .pill {
+        min-width: 72px;
+        padding: 7px 8px;
+      }
+
+      .value {
+        font-size: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="stage" aria-label="猫咪飞船游戏区域">
+      <canvas id="game" width="1280" height="800"></canvas>
+      <div class="hud" aria-live="polite">
+        <div class="hud-group">
+          <div class="pill"><span class="label">分数</span><span class="value" id="score">0</span></div>
+          <div class="pill"><span class="label">最佳</span><span class="value" id="best">0</span></div>
+        </div>
+        <div class="hud-group">
+          <div class="pill"><span class="label">护盾</span><span class="value" id="lives">3</span></div>
+          <div class="pill"><span class="label">推进</span><span class="value" id="level">1</span></div>
+        </div>
+      </div>
+      <div class="overlay" id="overlay">
+        <div class="modal">
+          <h1 id="title">猫咪飞船</h1>
+          <p class="subtitle" id="message">驾驶太空小猫穿过流星雨，收集小鱼罐头补充能量。</p>
+          <button id="startButton" type="button">开始发射</button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <div class="brand">
+        <strong>猫咪飞船</strong>
+        <span>一只小猫、一艘飞船、一片很不讲道理的流星雨。</span>
+      </div>
+      <div>
+        <div class="label">危险指数</div>
+        <div class="meter" aria-hidden="true"><i id="dangerMeter"></i></div>
+        <div class="legend">
+          <div class="legend-row"><span class="swatch">☄</span><span>陨石会扣护盾</span></div>
+          <div class="legend-row"><span class="swatch">🐟</span><span>小鱼罐头加分</span></div>
+          <div class="legend-row"><span class="swatch">✨</span><span>星屑连捡有奖励</span></div>
+        </div>
+      </div>
+      <div class="tips">
+        <div class="tip">键盘用方向键或 WASD；鼠标和触屏可以直接拖动飞船。</div>
+        <div class="tip">连着捡罐头会涨倍率，撞到陨石会清空倍率。</div>
+      </div>
+      <div class="footer">按空格暂停，按 R 重新开始。</div>
+    </aside>
+  </main>
+
+  <script>
+    const canvas = document.querySelector("#game");
+    const ctx = canvas.getContext("2d");
+    const scoreEl = document.querySelector("#score");
+    const bestEl = document.querySelector("#best");
+    const livesEl = document.querySelector("#lives");
+    const levelEl = document.querySelector("#level");
+    const overlay = document.querySelector("#overlay");
+    const titleEl = document.querySelector("#title");
+    const messageEl = document.querySelector("#message");
+    const startButton = document.querySelector("#startButton");
+    const dangerMeter = document.querySelector("#dangerMeter");
+
+    const state = {
+      running: false,
+      paused: false,
+      gameOver: false,
+      score: 0,
+      best: Number(localStorage.getItem("catRocketBest") || 0),
+      lives: 3,
+      level: 1,
+      streak: 0,
+      time: 0,
+      spawnRock: 0,
+      spawnFish: 0,
+      spawnDust: 0,
+      shake: 0,
+      objects: [],
+      particles: [],
+      stars: [],
+      keys: new Set(),
+      pointer: { active: false, x: 0, y: 0 },
+      ship: { x: 220, y: 390, vx: 0, vy: 0, r: 34, invulnerable: 0 }
+    };
+
+    const rand = (min, max) => Math.random() * (max - min) + min;
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+    function fitCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (!state.stars.length) makeStars();
+    }
+
+    function size() {
+      const rect = canvas.getBoundingClientRect();
+      return { w: rect.width, h: rect.height };
+    }
+
+    function makeStars() {
+      const { w, h } = size();
+      state.stars = Array.from({ length: 120 }, () => ({
+        x: rand(0, w),
+        y: rand(0, h),
+        z: rand(0.25, 1),
+        twinkle: rand(0, Math.PI * 2)
+      }));
+    }
+
+    function resetGame() {
+      const { w, h } = size();
+      state.running = true;
+      state.paused = false;
+      state.gameOver = false;
+      state.score = 0;
+      state.lives = 3;
+      state.level = 1;
+      state.streak = 0;
+      state.time = 0;
+      state.spawnRock = 0.45;
+      state.spawnFish = 1.1;
+      state.spawnDust = 0.32;
+      state.shake = 0;
+      state.objects = [];
+      state.particles = [];
+      state.ship.x = Math.min(220, w * 0.32);
+      state.ship.y = h * 0.5;
+      state.ship.vx = 0;
+      state.ship.vy = 0;
+      state.ship.invulnerable = 1.4;
+      hideOverlay();
+      updateHud();
+    }
+
+    function showOverlay(title, message, button) {
+      titleEl.textContent = title;
+      messageEl.textContent = message;
+      startButton.textContent = button;
+      overlay.classList.remove("hidden");
+    }
+
+    function hideOverlay() {
+      overlay.classList.add("hidden");
+    }
+
+    function updateHud() {
+      scoreEl.textContent = Math.floor(state.score);
+      bestEl.textContent = state.best;
+      livesEl.textContent = state.lives;
+      levelEl.textContent = state.level;
+      dangerMeter.style.width = `${clamp((state.level - 1) * 13, 0, 100)}%`;
+    }
+
+    function addScore(points) {
+      state.score += points;
+      if (state.score > state.best) {
+        state.best = Math.floor(state.score);
+        localStorage.setItem("catRocketBest", state.best);
+      }
+      updateHud();
+    }
+
+    function spawnRock() {
+      const { w, h } = size();
+      const big = Math.random() > 0.72;
+      state.objects.push({
+        type: "rock",
+        x: w + 70,
+        y: rand(50, h - 50),
+        vx: -(rand(210, 330) + state.level * 22),
+        vy: rand(-28, 28),
+        r: big ? rand(30, 47) : rand(18, 31),
+        spin: rand(-2.2, 2.2),
+        rot: rand(0, 9),
+        hp: big ? 2 : 1
+      });
+    }
+
+    function spawnFish() {
+      const { w, h } = size();
+      state.objects.push({
+        type: "fish",
+        x: w + 50,
+        y: rand(58, h - 58),
+        vx: -(rand(160, 245) + state.level * 12),
+        vy: rand(-42, 42),
+        r: 19,
+        wobble: rand(0, 8)
+      });
+    }
+
+    function spawnDust() {
+      const { w, h } = size();
+      state.objects.push({
+        type: "dust",
+        x: w + 34,
+        y: rand(46, h - 46),
+        vx: -(rand(150, 220) + state.level * 10),
+        vy: rand(-32, 32),
+        r: 10,
+        wobble: rand(0, 8)
+      });
+    }
+
+    function burst(x, y, color, amount) {
+      for (let i = 0; i < amount; i += 1) {
+        state.particles.push({
+          x,
+          y,
+          vx: rand(-160, 110),
+          vy: rand(-150, 150),
+          life: rand(0.35, 0.9),
+          max: 1,
+          size: rand(2, 5),
+          color
+        });
+      }
+    }
+
+    function hitRock(rock) {
+      if (state.ship.invulnerable > 0) return;
+      state.lives -= 1;
+      state.streak = 0;
+      state.ship.invulnerable = 1.15;
+      state.shake = 0.26;
+      burst(rock.x, rock.y, "#ff7585", 24);
+      playTone(90, 0.08, "sawtooth", 0.08);
+      updateHud();
+      if (state.lives <= 0) endGame();
+    }
+
+    function collect(item) {
+      if (item.type === "fish") {
+        state.streak += 1;
+        addScore(120 + state.streak * 20);
+        burst(item.x, item.y, "#ffcf5a", 18);
+        playTone(520 + state.streak * 22, 0.06, "triangle", 0.06);
+      } else {
+        addScore(18 + state.streak * 2);
+        burst(item.x, item.y, "#7ff7d2", 8);
+        playTone(720, 0.035, "sine", 0.035);
+      }
+    }
+
+    let audioContext;
+    function playTone(freq, duration, type, volume) {
+      try {
+        audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        gain.gain.value = volume;
+        gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+        osc.connect(gain).connect(audioContext.destination);
+        osc.start();
+        osc.stop(audioContext.currentTime + duration);
+      } catch (_) {
+        // Audio is optional; browsers can block it before interaction.
+      }
+    }
+
+    function endGame() {
+      state.running = false;
+      state.gameOver = true;
+      showOverlay("飞船返航", `最终分数 ${Math.floor(state.score)}。猫咪要求再来一趟。`, "再飞一次");
+    }
+
+    function update(dt) {
+      if (!state.running || state.paused) return;
+      const { w, h } = size();
+      state.time += dt;
+      state.level = 1 + Math.floor(state.time / 12);
+      state.spawnRock -= dt;
+      state.spawnFish -= dt;
+      state.spawnDust -= dt;
+      state.ship.invulnerable = Math.max(0, state.ship.invulnerable - dt);
+      state.shake = Math.max(0, state.shake - dt);
+
+      const speed = 620;
+      let ax = 0;
+      let ay = 0;
+      if (state.keys.has("ArrowLeft") || state.keys.has("KeyA")) ax -= 1;
+      if (state.keys.has("ArrowRight") || state.keys.has("KeyD")) ax += 1;
+      if (state.keys.has("ArrowUp") || state.keys.has("KeyW")) ay -= 1;
+      if (state.keys.has("ArrowDown") || state.keys.has("KeyS")) ay += 1;
+
+      if (state.pointer.active) {
+        const dx = state.pointer.x - state.ship.x;
+        const dy = state.pointer.y - state.ship.y;
+        state.ship.vx += clamp(dx * 8, -speed, speed) * dt;
+        state.ship.vy += clamp(dy * 8, -speed, speed) * dt;
+      } else {
+        state.ship.vx += ax * speed * dt;
+        state.ship.vy += ay * speed * dt;
+      }
+
+      state.ship.vx *= Math.pow(0.0018, dt);
+      state.ship.vy *= Math.pow(0.0018, dt);
+      state.ship.x = clamp(state.ship.x + state.ship.vx * dt, 36, w - 38);
+      state.ship.y = clamp(state.ship.y + state.ship.vy * dt, 42, h - 42);
+
+      if (state.spawnRock <= 0) {
+        spawnRock();
+        state.spawnRock = rand(0.42, 0.86) / (1 + state.level * 0.075);
+      }
+      if (state.spawnFish <= 0) {
+        spawnFish();
+        state.spawnFish = rand(1.05, 1.9);
+      }
+      if (state.spawnDust <= 0) {
+        spawnDust();
+        state.spawnDust = rand(0.24, 0.58);
+      }
+
+      for (const obj of state.objects) {
+        obj.x += obj.vx * dt;
+        obj.y += obj.vy * dt;
+        obj.rot = (obj.rot || 0) + (obj.spin || 0) * dt;
+        obj.wobble = (obj.wobble || 0) + dt * 4;
+        if (obj.y < 30 || obj.y > h - 30) obj.vy *= -1;
+        const d = Math.hypot(obj.x - state.ship.x, obj.y - state.ship.y);
+        if (!obj.collected && d < obj.r + state.ship.r * 0.68) {
+          obj.collected = true;
+          if (obj.type === "rock") hitRock(obj);
+          else collect(obj);
+        }
+      }
+
+      state.objects = state.objects.filter((obj) => obj.x > -90 && !obj.collected);
+      for (const p of state.particles) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vx *= Math.pow(0.03, dt);
+        p.vy *= Math.pow(0.03, dt);
+        p.life -= dt;
+      }
+      state.particles = state.particles.filter((p) => p.life > 0);
+      addScore(dt * (6 + state.level * 2));
+    }
+
+    function drawBackground(t) {
+      const { w, h } = size();
+      const grad = ctx.createLinearGradient(0, 0, w, h);
+      grad.addColorStop(0, "#152b42");
+      grad.addColorStop(0.48, "#0b1324");
+      grad.addColorStop(1, "#070912");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.save();
+      for (const star of state.stars) {
+        star.x -= (36 + state.level * 3) * star.z * 0.016;
+        if (star.x < -6) {
+          star.x = w + rand(2, 80);
+          star.y = rand(0, h);
+        }
+        const glow = 0.45 + Math.sin(t * 0.002 + star.twinkle) * 0.25;
+        ctx.fillStyle = `rgba(255,255,255,${0.22 + glow * star.z})`;
+        ctx.fillRect(star.x, star.y, 1.2 + star.z * 2, 1.2 + star.z * 2);
+      }
+      ctx.restore();
+
+      ctx.strokeStyle = "rgba(98, 230, 182, 0.08)";
+      ctx.lineWidth = 1;
+      for (let y = (t * 0.018) % 46; y < h; y += 46) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y + 28);
+        ctx.stroke();
+      }
+    }
+
+    function drawShip(t) {
+      const s = state.ship;
+      const flicker = s.invulnerable > 0 && Math.floor(t / 80) % 2 === 0;
+      if (flicker) ctx.globalAlpha = 0.48;
+
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      ctx.rotate(clamp(s.vy * 0.0012, -0.35, 0.35));
+
+      ctx.fillStyle = "rgba(98, 230, 182, 0.28)";
+      ctx.beginPath();
+      ctx.ellipse(-24, 0, 42 + Math.sin(t * 0.02) * 8, 15, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#ffcf5a";
+      ctx.beginPath();
+      ctx.moveTo(28, 0);
+      ctx.quadraticCurveTo(-4, -34, -46, -18);
+      ctx.lineTo(-35, 0);
+      ctx.lineTo(-46, 18);
+      ctx.quadraticCurveTo(-4, 34, 28, 0);
+      ctx.fill();
+
+      ctx.fillStyle = "#d65b6e";
+      ctx.beginPath();
+      ctx.moveTo(-44, -12);
+      ctx.lineTo(-70, -24 + Math.sin(t * 0.03) * 4);
+      ctx.lineTo(-52, 0);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-44, 12);
+      ctx.lineTo(-70, 24 - Math.sin(t * 0.03) * 4);
+      ctx.lineTo(-52, 0);
+      ctx.fill();
+
+      ctx.fillStyle = "#8ed7ff";
+      ctx.strokeStyle = "rgba(255,255,255,0.72)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(2, -8, 24, 19, -0.08, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#f4a660";
+      ctx.beginPath();
+      ctx.arc(-1, -10, 15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#f4a660";
+      ctx.beginPath();
+      ctx.moveTo(-13, -21);
+      ctx.lineTo(-7, -34);
+      ctx.lineTo(0, -21);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(7, -21);
+      ctx.lineTo(15, -33);
+      ctx.lineTo(18, -17);
+      ctx.fill();
+      ctx.fillStyle = "#172033";
+      ctx.beginPath();
+      ctx.arc(-6, -11, 2.4, 0, Math.PI * 2);
+      ctx.arc(7, -11, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#172033";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-1, -5);
+      ctx.quadraticCurveTo(1, -2, 4, -5);
+      ctx.stroke();
+
+      ctx.fillStyle = "#62e6b6";
+      ctx.beginPath();
+      ctx.moveTo(-58, 0);
+      ctx.lineTo(-86 - Math.sin(t * 0.045) * 14, -13);
+      ctx.lineTo(-76 - Math.cos(t * 0.035) * 10, 0);
+      ctx.lineTo(-86 - Math.sin(t * 0.045) * 14, 13);
+      ctx.fill();
+
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+
+    function drawRock(obj) {
+      ctx.save();
+      ctx.translate(obj.x, obj.y);
+      ctx.rotate(obj.rot);
+      ctx.fillStyle = "#776b67";
+      ctx.strokeStyle = "#b2a69b";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const points = 9;
+      for (let i = 0; i < points; i += 1) {
+        const a = (i / points) * Math.PI * 2;
+        const r = obj.r * (0.78 + Math.sin(i * 2.4 + obj.r) * 0.16 + (i % 2) * 0.14);
+        const x = Math.cos(a) * r;
+        const y = Math.sin(a) * r;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "rgba(28, 24, 24, 0.26)";
+      ctx.beginPath();
+      ctx.arc(-obj.r * 0.18, -obj.r * 0.15, obj.r * 0.17, 0, Math.PI * 2);
+      ctx.arc(obj.r * 0.26, obj.r * 0.18, obj.r * 0.12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawFish(obj) {
+      const bob = Math.sin(obj.wobble) * 4;
+      ctx.save();
+      ctx.translate(obj.x, obj.y + bob);
+      ctx.fillStyle = "#ffcf5a";
+      ctx.strokeStyle = "#fff3bd";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 18, 11, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(16, 0);
+      ctx.lineTo(31, -10);
+      ctx.lineTo(29, 10);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#172033";
+      ctx.beginPath();
+      ctx.arc(-8, -3, 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawDust(obj) {
+      const pulse = 1 + Math.sin(obj.wobble * 2) * 0.14;
+      ctx.save();
+      ctx.translate(obj.x, obj.y);
+      ctx.scale(pulse, pulse);
+      ctx.fillStyle = "#8ff9d7";
+      ctx.beginPath();
+      for (let i = 0; i < 8; i += 1) {
+        const a = (i / 8) * Math.PI * 2;
+        const r = i % 2 ? 4 : obj.r;
+        const x = Math.cos(a) * r;
+        const y = Math.sin(a) * r;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawParticles() {
+      for (const p of state.particles) {
+        ctx.globalAlpha = clamp(p.life / p.max, 0, 1);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function drawPaused() {
+      const { w, h } = size();
+      ctx.fillStyle = "rgba(5, 8, 14, 0.46)";
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = "#f8fbff";
+      ctx.textAlign = "center";
+      ctx.font = "800 34px system-ui, sans-serif";
+      ctx.fillText("已暂停", w / 2, h / 2);
+    }
+
+    function render(t) {
+      const dx = state.shake > 0 ? rand(-8, 8) * state.shake * 4 : 0;
+      const dy = state.shake > 0 ? rand(-8, 8) * state.shake * 4 : 0;
+      ctx.save();
+      ctx.translate(dx, dy);
+      drawBackground(t);
+      for (const obj of state.objects) {
+        if (obj.type === "rock") drawRock(obj);
+        if (obj.type === "fish") drawFish(obj);
+        if (obj.type === "dust") drawDust(obj);
+      }
+      drawParticles();
+      drawShip(t);
+      ctx.restore();
+      if (state.paused) drawPaused();
+    }
+
+    let last = performance.now();
+    function loop(now) {
+      const dt = Math.min((now - last) / 1000, 0.033);
+      last = now;
+      update(dt);
+      render(now);
+      requestAnimationFrame(loop);
+    }
+
+    function canvasPoint(event) {
+      const rect = canvas.getBoundingClientRect();
+      const touch = event.touches ? event.touches[0] : event;
+      return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+    }
+
+    function beginPointer(event) {
+      event.preventDefault();
+      const point = canvasPoint(event);
+      state.pointer.active = true;
+      state.pointer.x = point.x;
+      state.pointer.y = point.y;
+      if (!state.running) resetGame();
+    }
+
+    function movePointer(event) {
+      if (!state.pointer.active) return;
+      event.preventDefault();
+      const point = canvasPoint(event);
+      state.pointer.x = point.x;
+      state.pointer.y = point.y;
+    }
+
+    function endPointer() {
+      state.pointer.active = false;
+    }
+
+    window.addEventListener("resize", () => {
+      fitCanvas();
+      makeStars();
+    });
+    window.addEventListener("keydown", (event) => {
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
+      if (event.code === "Space" && state.running) state.paused = !state.paused;
+      if (event.code === "KeyR") resetGame();
+      state.keys.add(event.code);
+    });
+    window.addEventListener("keyup", (event) => state.keys.delete(event.code));
+    canvas.addEventListener("mousedown", beginPointer);
+    canvas.addEventListener("mousemove", movePointer);
+    window.addEventListener("mouseup", endPointer);
+    canvas.addEventListener("touchstart", beginPointer, { passive: false });
+    canvas.addEventListener("touchmove", movePointer, { passive: false });
+    window.addEventListener("touchend", endPointer);
+    startButton.addEventListener("click", resetGame);
+
+    fitCanvas();
+    updateHud();
+    render(performance.now());
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
