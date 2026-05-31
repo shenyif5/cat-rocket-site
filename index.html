@@ -125,6 +125,52 @@
       pointer-events: none;
     }
 
+    .skillbar {
+      position: absolute;
+      inset: auto 14px 14px 14px;
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      pointer-events: auto;
+    }
+
+    .skill {
+      width: 118px;
+      min-height: 48px;
+      padding: 7px 9px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      background: rgba(7, 11, 20, 0.72);
+      color: var(--ink);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+      backdrop-filter: blur(8px);
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .skill.ready {
+      border-color: rgba(98, 230, 182, 0.62);
+      box-shadow: 0 0 0 1px rgba(98, 230, 182, 0.12), 0 8px 24px rgba(0, 0, 0, 0.22);
+    }
+
+    .skill strong,
+    .skill span {
+      display: block;
+      line-height: 1.05;
+    }
+
+    .skill strong {
+      font-size: 13px;
+      font-weight: 850;
+    }
+
+    .skill span {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+
     .modal {
       width: min(420px, 100%);
       padding: 22px;
@@ -299,6 +345,20 @@
       .value {
         font-size: 18px;
       }
+
+      .skillbar {
+        inset: auto 9px 9px 9px;
+      }
+
+      .skill {
+        width: 33.333%;
+        min-height: 44px;
+        padding: 6px 7px;
+      }
+
+      .skill strong {
+        font-size: 12px;
+      }
     }
   </style>
 </head>
@@ -315,6 +375,11 @@
           <div class="pill"><span class="label">护盾</span><span class="value" id="lives">3</span></div>
           <div class="pill"><span class="label">推进</span><span class="value" id="level">1</span></div>
         </div>
+      </div>
+      <div class="skillbar" aria-label="技能">
+        <button class="skill ready" type="button" data-skill="dash"><strong>J 冲刺</strong><span id="dashStatus">就绪</span></button>
+        <button class="skill ready" type="button" data-skill="shield"><strong>K 护盾</strong><span id="shieldStatus">就绪</span></button>
+        <button class="skill ready" type="button" data-skill="wave"><strong>L 光波</strong><span id="waveStatus">就绪</span></button>
       </div>
       <div class="overlay" id="overlay">
         <div class="modal">
@@ -337,11 +402,12 @@
           <div class="legend-row"><span class="swatch">☄</span><span>陨石会扣护盾</span></div>
           <div class="legend-row"><span class="swatch">🐟</span><span>小鱼罐头加分</span></div>
           <div class="legend-row"><span class="swatch">✨</span><span>星屑连捡有奖励</span></div>
+          <div class="legend-row"><span class="swatch">⚡</span><span>J / K / L 使用技能</span></div>
         </div>
       </div>
       <div class="tips">
         <div class="tip">键盘用方向键或 WASD；鼠标和触屏可以直接拖动飞船。</div>
-        <div class="tip">连着捡罐头会涨倍率，撞到陨石会清空倍率。</div>
+        <div class="tip">冲刺可以穿过危险，护盾会挡撞击，光波能清掉前方陨石。</div>
       </div>
       <div class="footer">按空格暂停，按 R 重新开始。</div>
     </aside>
@@ -359,6 +425,12 @@
     const messageEl = document.querySelector("#message");
     const startButton = document.querySelector("#startButton");
     const dangerMeter = document.querySelector("#dangerMeter");
+    const skillButtons = [...document.querySelectorAll("[data-skill]")];
+    const skillStatus = {
+      dash: document.querySelector("#dashStatus"),
+      shield: document.querySelector("#shieldStatus"),
+      wave: document.querySelector("#waveStatus")
+    };
 
     const state = {
       running: false,
@@ -377,6 +449,11 @@
       objects: [],
       particles: [],
       stars: [],
+      skills: {
+        dash: { cooldown: 2.2, timer: 0, active: 0 },
+        shield: { cooldown: 8, timer: 0, active: 0 },
+        wave: { cooldown: 6, timer: 0, active: 0 }
+      },
       keys: new Set(),
       pointer: { active: false, x: 0, y: 0 },
       ship: { x: 220, y: 390, vx: 0, vy: 0, r: 34, invulnerable: 0 }
@@ -430,6 +507,10 @@
       state.ship.vx = 0;
       state.ship.vy = 0;
       state.ship.invulnerable = 1.4;
+      for (const skill of Object.values(state.skills)) {
+        skill.timer = 0;
+        skill.active = 0;
+      }
       hideOverlay();
       updateHud();
     }
@@ -451,6 +532,13 @@
       livesEl.textContent = state.lives;
       levelEl.textContent = state.level;
       dangerMeter.style.width = `${clamp((state.level - 1) * 13, 0, 100)}%`;
+      for (const button of skillButtons) {
+        const skillName = button.dataset.skill;
+        const skill = state.skills[skillName];
+        const ready = skill.timer <= 0;
+        button.classList.toggle("ready", ready);
+        skillStatus[skillName].textContent = ready ? "就绪" : `${skill.timer.toFixed(1)}s`;
+      }
     }
 
     function addScore(points) {
@@ -519,7 +607,71 @@
       }
     }
 
+    function useSkill(name) {
+      if (!state.running || state.paused) return;
+      const skill = state.skills[name];
+      if (!skill || skill.timer > 0) return;
+      const { w, h } = size();
+
+      if (name === "dash") {
+        let dx = 1;
+        let dy = 0;
+        if (state.pointer.active) {
+          dx = state.pointer.x - state.ship.x;
+          dy = state.pointer.y - state.ship.y;
+        } else {
+          dx = Number(state.keys.has("ArrowRight") || state.keys.has("KeyD")) - Number(state.keys.has("ArrowLeft") || state.keys.has("KeyA"));
+          dy = Number(state.keys.has("ArrowDown") || state.keys.has("KeyS")) - Number(state.keys.has("ArrowUp") || state.keys.has("KeyW"));
+        }
+        const length = Math.hypot(dx, dy) || 1;
+        state.ship.vx += (dx / length) * 980;
+        state.ship.vy += (dy / length) * 980;
+        state.ship.invulnerable = Math.max(state.ship.invulnerable, 0.38);
+        skill.active = 0.22;
+        skill.timer = skill.cooldown;
+        burst(state.ship.x - 34, state.ship.y, "#62e6b6", 18);
+        playTone(760, 0.06, "triangle", 0.055);
+      }
+
+      if (name === "shield") {
+        skill.active = 3.2;
+        skill.timer = skill.cooldown;
+        state.ship.invulnerable = Math.max(state.ship.invulnerable, 3.2);
+        burst(state.ship.x, state.ship.y, "#8ed7ff", 24);
+        playTone(420, 0.12, "sine", 0.06);
+      }
+
+      if (name === "wave") {
+        let cleared = 0;
+        for (const obj of state.objects) {
+          if (obj.type !== "rock" || obj.collected) continue;
+          const inFront = obj.x > state.ship.x - 28;
+          const closeLane = Math.abs(obj.y - state.ship.y) < h * 0.24;
+          const closeCircle = Math.hypot(obj.x - state.ship.x, obj.y - state.ship.y) < Math.min(w, 390);
+          if (inFront && (closeLane || closeCircle)) {
+            obj.collected = true;
+            cleared += 1;
+            burst(obj.x, obj.y, "#ffcf5a", 16);
+          }
+        }
+        if (cleared > 0) addScore(cleared * 75);
+        skill.active = 0.34;
+        skill.timer = skill.cooldown;
+        state.shake = Math.max(state.shake, 0.12);
+        burst(state.ship.x + 36, state.ship.y, "#ffcf5a", 28);
+        playTone(230, 0.08, "sawtooth", 0.055);
+      }
+
+      updateHud();
+    }
+
     function hitRock(rock) {
+      if (state.skills.shield.active > 0) {
+        addScore(35);
+        burst(rock.x, rock.y, "#8ed7ff", 20);
+        playTone(640, 0.05, "triangle", 0.05);
+        return;
+      }
       if (state.ship.invulnerable > 0) return;
       state.lives -= 1;
       state.streak = 0;
@@ -578,6 +730,10 @@
       state.spawnDust -= dt;
       state.ship.invulnerable = Math.max(0, state.ship.invulnerable - dt);
       state.shake = Math.max(0, state.shake - dt);
+      for (const skill of Object.values(state.skills)) {
+        skill.timer = Math.max(0, skill.timer - dt);
+        skill.active = Math.max(0, skill.active - dt);
+      }
 
       const speed = 1020;
       let ax = 0;
@@ -639,6 +795,7 @@
       }
       state.particles = state.particles.filter((p) => p.life > 0);
       addScore(dt * (6 + state.level * 2));
+      updateHud();
     }
 
     function drawBackground(t) {
@@ -839,6 +996,51 @@
       ctx.globalAlpha = 1;
     }
 
+    function drawSkillEffects(t) {
+      const s = state.ship;
+
+      if (state.skills.shield.active > 0) {
+        const pulse = 1 + Math.sin(t * 0.018) * 0.05;
+        ctx.save();
+        ctx.translate(s.x, s.y);
+        ctx.scale(pulse, pulse);
+        ctx.strokeStyle = "rgba(142, 215, 255, 0.88)";
+        ctx.fillStyle = "rgba(142, 215, 255, 0.1)";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 58, 46, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      if (state.skills.dash.active > 0) {
+        ctx.save();
+        ctx.globalAlpha = clamp(state.skills.dash.active / 0.22, 0, 1);
+        ctx.strokeStyle = "rgba(98, 230, 182, 0.65)";
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(s.x - 92, s.y + 22);
+        ctx.lineTo(s.x - 24, s.y + 6);
+        ctx.moveTo(s.x - 92, s.y - 22);
+        ctx.lineTo(s.x - 24, s.y - 6);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      if (state.skills.wave.active > 0) {
+        const progress = 1 - state.skills.wave.active / 0.34;
+        ctx.save();
+        ctx.globalAlpha = 1 - progress;
+        ctx.strokeStyle = "rgba(255, 207, 90, 0.86)";
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.ellipse(s.x + 92 + progress * 220, s.y, 54 + progress * 180, 26 + progress * 85, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
     function drawPaused() {
       const { w, h } = size();
       ctx.fillStyle = "rgba(5, 8, 14, 0.46)";
@@ -861,6 +1063,7 @@
         if (obj.type === "dust") drawDust(obj);
       }
       drawParticles();
+      drawSkillEffects(t);
       drawShip(t);
       ctx.restore();
       if (state.paused) drawPaused();
@@ -910,6 +1113,9 @@
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
       if (event.code === "Space" && state.running) state.paused = !state.paused;
       if (event.code === "KeyR") resetGame();
+      if (event.code === "KeyJ") useSkill("dash");
+      if (event.code === "KeyK") useSkill("shield");
+      if (event.code === "KeyL") useSkill("wave");
       state.keys.add(event.code);
     });
     window.addEventListener("keyup", (event) => state.keys.delete(event.code));
@@ -919,6 +1125,9 @@
     canvas.addEventListener("touchstart", beginPointer, { passive: false });
     canvas.addEventListener("touchmove", movePointer, { passive: false });
     window.addEventListener("touchend", endPointer);
+    for (const button of skillButtons) {
+      button.addEventListener("click", () => useSkill(button.dataset.skill));
+    }
     startButton.addEventListener("click", resetGame);
 
     fitCanvas();
