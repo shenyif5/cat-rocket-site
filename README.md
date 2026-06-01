@@ -42,6 +42,6 @@ http://127.0.0.1:8765/
 3. 在 `index.html` 里填入 `SUPABASE_URL` 和 `SUPABASE_ANON_KEY`。
 4. 提交并推送到 GitHub Pages。
 
-分数表默认允许匿名读取和提交分数，适合小游戏朋友间比较。认真公开运营前建议再加防刷逻辑。
+分数表默认允许匿名读取和提交分数。同一个昵称只保留最高分，适合小游戏朋友间比较。认真公开运营前建议再加防刷逻辑。
 
 当前项目已经连接到 Supabase 项目 `cat-rocket-leaderboard`。
