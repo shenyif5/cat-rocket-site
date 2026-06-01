@@ -227,6 +227,25 @@
       box-shadow: 0 4px 0 #9f6f21, 0 12px 26px rgba(0, 0, 0, 0.22);
     }
 
+    .modal-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    button.secondary {
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.09);
+      color: var(--ink);
+      box-shadow: none;
+    }
+
+    button.secondary:hover,
+    button.secondary:active {
+      box-shadow: none;
+    }
+
     .side {
       display: flex;
       min-width: 0;
@@ -391,7 +410,10 @@
         <div class="modal">
           <h1 id="title">猫咪飞船</h1>
           <p class="subtitle" id="message">驾驶太空小猫穿过流星雨，收集小鱼罐头补充能量。</p>
-          <button id="startButton" type="button">开始发射</button>
+          <div class="modal-actions">
+            <button id="startButton" type="button">开始发射</button>
+            <button class="secondary" id="tutorialButton" type="button">新手教程</button>
+          </div>
         </div>
       </div>
     </section>
@@ -430,6 +452,7 @@
     const titleEl = document.querySelector("#title");
     const messageEl = document.querySelector("#message");
     const startButton = document.querySelector("#startButton");
+    const tutorialButton = document.querySelector("#tutorialButton");
     const dangerMeter = document.querySelector("#dangerMeter");
     const skillButtons = [...document.querySelectorAll("[data-skill]")];
     const skillStatus = {
@@ -446,6 +469,8 @@
       best: Number(localStorage.getItem("catRocketBest") || 0),
       lives: 3,
       level: 1,
+      tutorial: false,
+      tutorialIndex: 0,
       streak: 0,
       time: 0,
       spawnRock: 0,
@@ -467,6 +492,13 @@
 
     const rand = (min, max) => Math.random() * (max - min) + min;
     const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    const tutorialSteps = [
+      "移动：方向键或 WASD 控制飞船，手机上直接拖动飞船。别怕，猫咪飞船很听话。",
+      "目标：收集小鱼罐头和星屑得分，连着捡会越来越赚。",
+      "危险：撞到陨石会掉护盾。护盾归零后飞船返航，分数结算。",
+      "技能：J 冲刺、K 护盾、L 光波。手机玩家可以点底部三个技能按钮。",
+      "小秘诀：冲刺能短暂无敌，护盾适合硬闯，光波适合清掉前方一片陨石。"
+    ];
 
     function fitCanvas() {
       const rect = canvas.getBoundingClientRect();
@@ -497,6 +529,7 @@
       state.running = true;
       state.paused = false;
       state.gameOver = false;
+      state.tutorial = false;
       state.score = 0;
       state.lives = 3;
       state.level = 1;
@@ -522,14 +555,49 @@
     }
 
     function showOverlay(title, message, button) {
+      state.tutorial = false;
       titleEl.textContent = title;
       messageEl.textContent = message;
       startButton.textContent = button;
+      tutorialButton.textContent = "新手教程";
       overlay.classList.remove("hidden");
     }
 
     function hideOverlay() {
       overlay.classList.add("hidden");
+    }
+
+    function showTutorial(index = 0) {
+      state.running = false;
+      state.paused = false;
+      state.tutorial = true;
+      state.tutorialIndex = clamp(index, 0, tutorialSteps.length - 1);
+      titleEl.textContent = `新手教程 ${state.tutorialIndex + 1}/${tutorialSteps.length}`;
+      messageEl.textContent = tutorialSteps[state.tutorialIndex];
+      startButton.textContent = state.tutorialIndex === tutorialSteps.length - 1 ? "开始发射" : "下一步";
+      tutorialButton.textContent = "返回首页";
+      overlay.classList.remove("hidden");
+    }
+
+    function handlePrimaryAction() {
+      if (!state.tutorial) {
+        resetGame();
+        return;
+      }
+
+      if (state.tutorialIndex >= tutorialSteps.length - 1) {
+        resetGame();
+      } else {
+        showTutorial(state.tutorialIndex + 1);
+      }
+    }
+
+    function handleTutorialAction() {
+      if (state.tutorial) {
+        showOverlay("猫咪飞船", "驾驶太空小猫穿过流星雨，收集小鱼罐头补充能量。", "开始发射");
+      } else {
+        showTutorial();
+      }
     }
 
     function updateHud() {
@@ -1134,7 +1202,8 @@
     for (const button of skillButtons) {
       button.addEventListener("click", () => useSkill(button.dataset.skill));
     }
-    startButton.addEventListener("click", resetGame);
+    startButton.addEventListener("click", handlePrimaryAction);
+    tutorialButton.addEventListener("click", handleTutorialAction);
 
     fitCanvas();
     updateHud();
