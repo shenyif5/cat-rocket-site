@@ -234,6 +234,83 @@
       gap: 10px;
     }
 
+    .leaderboard {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
+      text-align: left;
+    }
+
+    .leaderboard[hidden] {
+      display: none;
+    }
+
+    .score-form {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+    }
+
+    .score-form input {
+      min-width: 0;
+      min-height: 44px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.09);
+      color: var(--ink);
+      font: inherit;
+      padding: 10px 12px;
+      outline: none;
+    }
+
+    .score-form input:focus {
+      border-color: rgba(98, 230, 182, 0.72);
+    }
+
+    .score-form button {
+      box-shadow: none;
+      min-width: 78px;
+    }
+
+    .leaderboard-title {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .leaderboard-list {
+      display: grid;
+      gap: 6px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .leaderboard-list li {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.07);
+      padding: 7px 9px;
+      font-size: 13px;
+    }
+
+    .leaderboard-list b {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .leaderboard-status {
+      min-height: 18px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
     button.secondary {
       border: 1px solid rgba(255, 255, 255, 0.16);
       background: rgba(255, 255, 255, 0.09);
@@ -414,6 +491,15 @@
             <button id="startButton" type="button">开始发射</button>
             <button class="secondary" id="tutorialButton" type="button">新手教程</button>
           </div>
+          <div class="leaderboard" id="leaderboardPanel" hidden>
+            <div class="score-form">
+              <input id="playerName" maxlength="16" autocomplete="nickname" placeholder="昵称">
+              <button id="submitScoreButton" type="button">提交</button>
+            </div>
+            <div class="leaderboard-title">排行榜 Top 10</div>
+            <ol class="leaderboard-list" id="leaderboardList"></ol>
+            <div class="leaderboard-status" id="leaderboardStatus"></div>
+          </div>
         </div>
       </div>
     </section>
@@ -453,6 +539,11 @@
     const messageEl = document.querySelector("#message");
     const startButton = document.querySelector("#startButton");
     const tutorialButton = document.querySelector("#tutorialButton");
+    const leaderboardPanel = document.querySelector("#leaderboardPanel");
+    const leaderboardList = document.querySelector("#leaderboardList");
+    const leaderboardStatus = document.querySelector("#leaderboardStatus");
+    const playerNameInput = document.querySelector("#playerName");
+    const submitScoreButton = document.querySelector("#submitScoreButton");
     const dangerMeter = document.querySelector("#dangerMeter");
     const skillButtons = [...document.querySelectorAll("[data-skill]")];
     const skillStatus = {
@@ -465,6 +556,8 @@
       running: false,
       paused: false,
       gameOver: false,
+      lastScore: 0,
+      scoreSubmitted: false,
       score: 0,
       best: Number(localStorage.getItem("catRocketBest") || 0),
       lives: 3,
@@ -492,6 +585,8 @@
 
     const rand = (min, max) => Math.random() * (max - min) + min;
     const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    const SUPABASE_URL = "";
+    const SUPABASE_ANON_KEY = "";
     const tutorialSteps = [
       "移动：方向键或 WASD 控制飞船，手机上直接拖动飞船。别怕，猫咪飞船很听话。",
       "目标：收集小鱼罐头和星屑得分，连着捡会越来越赚。",
@@ -529,6 +624,7 @@
       state.running = true;
       state.paused = false;
       state.gameOver = false;
+      state.scoreSubmitted = false;
       state.tutorial = false;
       state.score = 0;
       state.lives = 3;
@@ -556,6 +652,7 @@
 
     function showOverlay(title, message, button) {
       state.tutorial = false;
+      leaderboardPanel.hidden = true;
       titleEl.textContent = title;
       messageEl.textContent = message;
       startButton.textContent = button;
@@ -568,6 +665,7 @@
     }
 
     function showTutorial(index = 0) {
+      leaderboardPanel.hidden = true;
       state.running = false;
       state.paused = false;
       state.tutorial = true;
@@ -598,6 +696,111 @@
       } else {
         showTutorial();
       }
+    }
+
+    function leaderboardConfigured() {
+      return SUPABASE_URL.startsWith("https://") && SUPABASE_ANON_KEY.length > 20;
+    }
+
+    function sanitizeName(name) {
+      return name.trim().replace(/\s+/g, " ").slice(0, 16) || "匿名猫咪";
+    }
+
+    async function supabaseRequest(path, options = {}) {
+      const url = `${SUPABASE_URL.replace(/\/$/, "")}/rest/v1/${path}`;
+      const headers = {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        ...options.headers
+      };
+      const response = await fetch(url, { ...options, headers });
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(detail || `Supabase request failed: ${response.status}`);
+      }
+      if (response.status === 204) return null;
+      return response.json();
+    }
+
+    function renderLeaderboard(rows = []) {
+      leaderboardList.innerHTML = "";
+      if (!rows.length) {
+        leaderboardList.innerHTML = "<li><span>-</span><b>还没有分数</b><span>0</span></li>";
+        return;
+      }
+      for (const [index, row] of rows.entries()) {
+        const item = document.createElement("li");
+        const rank = document.createElement("span");
+        const name = document.createElement("b");
+        const score = document.createElement("span");
+        rank.textContent = String(index + 1);
+        name.textContent = row.name || "匿名猫咪";
+        score.textContent = String(row.score || 0);
+        item.append(rank, name, score);
+        leaderboardList.append(item);
+      }
+    }
+
+    async function loadLeaderboard() {
+      if (!leaderboardConfigured()) {
+        renderLeaderboard();
+        leaderboardStatus.textContent = "排行榜还没连接 Supabase；配置后朋友们就能一起比最高分。";
+        return;
+      }
+      leaderboardStatus.textContent = "正在读取排行榜...";
+      try {
+        const rows = await supabaseRequest("scores?select=name,score,created_at&order=score.desc&order=created_at.asc&limit=10");
+        renderLeaderboard(rows);
+        leaderboardStatus.textContent = "";
+      } catch (error) {
+        renderLeaderboard();
+        leaderboardStatus.textContent = "排行榜读取失败，稍后再试。";
+      }
+    }
+
+    async function submitScore() {
+      if (state.scoreSubmitted) {
+        leaderboardStatus.textContent = "这局分数已经提交过了。";
+        return;
+      }
+      if (!leaderboardConfigured()) {
+        leaderboardStatus.textContent = "还需要填入 Supabase URL 和 anon key 才能提交。";
+        return;
+      }
+      const name = sanitizeName(playerNameInput.value);
+      const score = Math.floor(state.lastScore);
+      submitScoreButton.disabled = true;
+      leaderboardStatus.textContent = "正在提交分数...";
+      try {
+        await supabaseRequest("scores", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Prefer: "return=minimal"
+          },
+          body: JSON.stringify({ name, score })
+        });
+        localStorage.setItem("catRocketName", name);
+        state.scoreSubmitted = true;
+        leaderboardStatus.textContent = "提交成功。";
+        await loadLeaderboard();
+      } catch (error) {
+        leaderboardStatus.textContent = "提交失败，稍后再试。";
+      } finally {
+        submitScoreButton.disabled = false;
+      }
+    }
+
+    function showGameOver() {
+      state.lastScore = Math.floor(state.score);
+      leaderboardPanel.hidden = false;
+      playerNameInput.value = localStorage.getItem("catRocketName") || "";
+      titleEl.textContent = "飞船返航";
+      messageEl.textContent = `最终分数 ${state.lastScore}。提交分数后可以和朋友比排行榜。`;
+      startButton.textContent = "再飞一次";
+      tutorialButton.textContent = "新手教程";
+      overlay.classList.remove("hidden");
+      loadLeaderboard();
     }
 
     function updateHud() {
@@ -791,7 +994,7 @@
     function endGame() {
       state.running = false;
       state.gameOver = true;
-      showOverlay("飞船返航", `最终分数 ${Math.floor(state.score)}。猫咪要求再来一趟。`, "再飞一次");
+      showGameOver();
     }
 
     function update(dt) {
@@ -1204,6 +1407,7 @@
     }
     startButton.addEventListener("click", handlePrimaryAction);
     tutorialButton.addEventListener("click", handleTutorialAction);
+    submitScoreButton.addEventListener("click", submitScore);
 
     fitCanvas();
     updateHud();

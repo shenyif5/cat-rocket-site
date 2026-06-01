@@ -32,3 +32,14 @@ http://127.0.0.1:8765/
 ## 发布
 
 这是一个静态网站项目，可以发布到 GitHub Pages、Netlify、Vercel 或 Cloudflare Pages。
+
+## 在线排行榜
+
+排行榜使用 Supabase。
+
+1. 新建 Supabase 项目。
+2. 打开 SQL Editor，运行 `supabase-schema.sql`。
+3. 在 `index.html` 里填入 `SUPABASE_URL` 和 `SUPABASE_ANON_KEY`。
+4. 提交并推送到 GitHub Pages。
+
+分数表默认允许匿名读取和提交分数，适合小游戏朋友间比较。认真公开运营前建议再加防刷逻辑。
