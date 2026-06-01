@@ -718,8 +718,8 @@
         const detail = await response.text();
         throw new Error(detail || `Supabase request failed: ${response.status}`);
       }
-      if (response.status === 204) return null;
-      return response.json();
+      const text = await response.text();
+      return text ? JSON.parse(text) : null;
     }
 
     function renderLeaderboard(rows = []) {
